@@ -1,33 +1,37 @@
-export type Product = {
+// src/types/index.ts
+
+export interface Produk {
   ID_Produk: string;
   Nama_Produk: string;
   Kategori: string;
-  Satuan: string;
   Harga_Modal: number;
   Harga_Jual: number;
   Stok_Awal: number;
-  Foto?: string; // Optional (bisa kosong)
-  Parent_ID?: string; // Optional (berisi ID renteng)
-  Isi_Per_Parent?: number | string; // Optional (jumlah default konversi)
-};
+  Stok_Minimal: number;
+  Satuan: string;
+  Foto?: string;
+}
 
-export type CartItem = Product & {
-  quantity: number;
-};
+export interface CartItem extends Produk {
+  Jumlah_Beli: number;
+  Total_Harga: number;
+}
 
-// TAMBAHKAN INI:
-export type Transaction = {
+export interface Transaksi {
   ID_Transaksi: string;
   Waktu: string;
   ID_Produk: string;
   Jumlah_Beli: number;
   Total_Harga: number;
-};
-// Tambahkan ini di bagian bawah file
-export type Kas = {
-  ID_Kas: string;
-  Waktu: string;
-  Jenis: string;
-  Nominal: number;
-  Keterangan: string;
-};
+  // Field tambahan untuk fitur Hutang
+  Metode_Pembayaran?: "Tunai" | "Transfer" | "Hutang";
+  Nama_Pelanggan?: string;
+  Status_Hutang?: "Belum Lunas" | "Lunas";
+}
+
+// Ini yang dicari oleh api.ts Anda!
+export interface ApiResponse<T = any> {
+  error: boolean;
+  message: string;
+  data?: T;
+}

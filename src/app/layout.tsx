@@ -1,22 +1,16 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Sidebar from "@/components/Sidebar";
-import { ThemeProvider } from "@/components/theme-provider";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import QueryProvider from "@/components/QueryProvider";
+import { Toaster } from "react-hot-toast";
+import Sidebar from "@/components/Sidebar"; // KITA IMPORT SIDEBAR DI SINI
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kasir Warung Pro",
-  description: "Sistem POS profesional dengan Next.js",
+  title: "POSPro - Sistem Kasir UMKM",
+  description: "Point of Sale Modern dan Cepat",
 };
 
 export default function RootLayout({
@@ -25,20 +19,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300`}
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
-        >
-          <div className="flex h-screen overflow-hidden">
+    <html lang="id">
+      <body className={inter.className}>
+        <QueryProvider>
+          {/* KONTAINER UTAMA: Membagi layar jadi 2 kolom (Sidebar Kiri & Konten Kanan) */}
+          <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
+            {/* Memanggil Komponen Sidebar */}
             <Sidebar />
-            <main className="flex-1 overflow-y-auto">{children}</main>
+
+            {/* Area Konten Dinamis (Halaman POS, Produk, dll akan masuk ke sini) */}
+            <main className="flex-1 overflow-x-hidden overflow-y-auto">
+              {children}
+            </main>
           </div>
-        </ThemeProvider>
+
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: { borderRadius: "12px", fontWeight: "600" },
+            }}
+          />
+        </QueryProvider>
       </body>
     </html>
   );

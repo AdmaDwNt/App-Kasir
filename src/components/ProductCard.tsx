@@ -1,58 +1,50 @@
 "use client";
 
-import { Product } from "@/types";
-import { AlertCircle } from "lucide-react";
+import { Produk } from "@/types";
+import { useCartStore } from "@/store/useCartStore";
 
-interface ProductCardProps {
-  product: Product;
-  onAddToCart: (product: Product) => void;
-}
+export default function ProductCard({ produk }: { produk: Produk }) {
+  const addToCart = useCartStore((state) => state.addToCart);
 
-export default function ProductCard({
-  product,
-  onAddToCart,
-}: ProductCardProps) {
-  // Cek apakah stok tipis (jika stok minimal kosong, kita pakai default 5)
-  const isLowStock = product.Stok_Awal <= (product.Stok_Minimal || 5);
+  // Jika stok habis atau minus, kita disable tombolnya
+  const isOutOfStock = produk.Stok_Awal <= 0;
 
   return (
     <div
-      onClick={() => onAddToCart(product)}
-      className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-4 cursor-pointer hover:shadow-xl hover:border-gray-300 dark:hover:border-gray-600 transition-all active:scale-95 relative overflow-hidden group flex flex-col h-full justify-between"
+      onClick={() => !isOutOfStock && addToCart(produk)}
+      className={`border p-4 rounded-xl shadow-sm transition flex flex-col items-center text-center bg-white ${
+        isOutOfStock
+          ? "opacity-50 cursor-not-allowed grayscale"
+          : "hover:shadow-md cursor-pointer hover:border-blue-500"
+      }`}
     >
-      {/* BADGE STOK TIPIS */}
-      {isLowStock && (
-        <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1 z-10 shadow-sm">
-          <AlertCircle size={12} /> Sisa: {product.Stok_Awal}
+      {/* Tampilkan gambar jika ada, jika tidak pakai placeholder */}
+      {produk.Foto ? (
+        <img
+          src={produk.Foto}
+          alt={produk.Nama_Produk}
+          className="w-full h-28 object-cover rounded-lg mb-3"
+        />
+      ) : (
+        <div className="w-full h-28 bg-slate-100 rounded-lg mb-3 flex items-center justify-center text-slate-400 text-xs font-medium">
+          No Image
         </div>
       )}
 
-      <div>
-        {/* AREA FOTO PRODUK: Akan menampilkan foto jika ada, jika tidak kembali ke emoji kotak */}
-        <div className="aspect-square bg-gray-50 dark:bg-gray-800 rounded-xl mb-4 flex items-center justify-center overflow-hidden group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">
-          {product.Foto ? (
-            <img
-              src={product.Foto}
-              alt={product.Nama_Produk}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="text-4xl opacity-80">📦</span>
-          )}
-        </div>
+      <h3 className="font-semibold text-slate-800 text-sm line-clamp-2 leading-tight min-h-[2.5rem]">
+        {produk.Nama_Produk}
+      </h3>
+      <p className="text-xs text-slate-500 mt-1">
+        {produk.Kategori} • {produk.Satuan}
+      </p>
+      <p className="font-bold text-blue-600 mt-2 text-lg">
+        Rp {produk.Harga_Jual.toLocaleString("id-ID")}
+      </p>
 
-        <h3 className="font-bold text-gray-900 dark:text-gray-100 leading-tight mb-1">
-          {product.Nama_Produk}
-        </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          {product.Kategori}
-        </p>
-      </div>
-
-      <div className="flex justify-between items-end mt-auto">
-        <span className="font-black text-green-600 dark:text-green-400">
-          Rp {(product.Harga_Jual || 0).toLocaleString("id-ID")}
-        </span>
+      <div
+        className={`mt-2 text-xs font-semibold px-2 py-1 rounded-full ${isOutOfStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}`}
+      >
+        Stok: {produk.Stok_Awal}
       </div>
     </div>
   );

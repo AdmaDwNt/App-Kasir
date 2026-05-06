@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { gasFetch } from "@/lib/api";
 import { Transaksi } from "@/types";
 import { toast } from "react-hot-toast";
 
@@ -14,7 +14,15 @@ export default function KeuanganClient() {
   // Tarik data transaksi dari cache
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["transaksi"],
-    queryFn: () => api.get<Transaksi>("transaksi"),
+    queryFn: async () => {
+      try {
+        const res = await gasFetch<any>("?data=transaksi");
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return [];
+      }
+    },
   });
 
   // Simulasi data Hutang (Karena API GAS saat ini hanya merekam barang,
@@ -44,7 +52,7 @@ export default function KeuanganClient() {
   ];
 
   const handlePelunasan = (nama: string) => {
-    // Di backend nyata, ini akan memanggil api.post({ action: 'lunasi_hutang', ... })
+    // Di backend nyata, ini akan memanggil gasFetch("", { method: "POST", body: JSON.stringify({ action: 'lunasi_hutang', ... }) })
     const toastId = toast.loading(`Memproses pelunasan ${nama}...`);
     setTimeout(() => {
       toast.success(`Hutang ${nama} berhasil dilunasi!`, { id: toastId });
@@ -126,7 +134,7 @@ export default function KeuanganClient() {
                 </tr>
               </thead>
               <tbody>
-                {piutangList.map((item, idx) => (
+                {(Array.isArray(piutangList) ? piutangList : []).map((item, idx) => (
                   <tr
                     key={idx}
                     className="border-b border-slate-50 hover:bg-slate-50 transition-colors"

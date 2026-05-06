@@ -1,93 +1,65 @@
 // src/lib/api.ts
 import { ApiResponse } from "@/types";
 
-const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL;
+export async function gasFetch<T = any>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
+  const GAS_URL = process.env.NEXT_PUBLIC_GAS_API_URL;
+  
+  if (!GAS_URL) {
+    throw new Error("NEXT_PUBLIC_GAS_API_URL environment variable belum diset di .env.local!");
+  }
 
-export const api = {
-  get: async <T>(dataParam: string): Promise<T[]> => {
-    if (!GAS_URL) throw new Error("NEXT_PUBLIC_GAS_URL belum diset!");
-    try {
-      const res = await fetch(`${GAS_URL}?data=${dataParam}`, {
-        cache: "no-store",
-        redirect: "follow", // Wajib untuk melewati sistem keamanan Google
-      });
+  // Menyusun URL (Endpoint bisa berupa query string seperti "?action=getProduk")
+  // Atau menggunakan string kosong jika endpoint tidak diisi
+  let url = GAS_URL;
+  if (endpoint) {
+    url = endpoint.startsWith('?') || endpoint.startsWith('&') 
+      ? `${GAS_URL}${endpoint}` 
+      : `${GAS_URL}?endpoint=${endpoint}`;
+  }
 
-      const textData = await res.text();
+  // Menggabungkan options bawaan dengan requirement khusus GAS
+  const fetchOptions: RequestInit = {
+    ...options,
+    redirect: "follow", // Wajib untuk melewati sistem redirect keamanan Google
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8", // Sangat penting: Hindari CORS preflight OPTIONS
+      ...(options?.headers || {}),
+    },
+  };
 
-      // === 🚨 RADAR DEBUGGING KHUSUS 🚨 ===
-      // Ini akan mencetak teks mentah dari Google ke Console Browser
-      console.log(
-        `[🔍 RAW DATA ${dataParam.toUpperCase()}]`,
-        textData.substring(0, 200),
-      );
+  try {
+    const response = await fetch(url, fetchOptions);
 
-      let json;
-      try {
-        json = JSON.parse(textData);
-        // Menangani kasus "Double Stringify" khas Google Apps Script
-        if (typeof json === "string") {
-          json = JSON.parse(json);
-        }
-      } catch (e) {
-        console.error(`❌ Data ${dataParam} bukan JSON valid:`, textData);
-        return [];
-      }
-
-      // --- LOGIKA PENCARI ARRAY (SUPER KEBAL PELURU) ---
-      if (Array.isArray(json)) return json; // Jika langsung berupa array
-
-      if (json && typeof json === "object") {
-        if (json.error === true)
-          throw new Error(json.message || "Error dari server");
-
-        // Membabi buta mencari properti apapun yang bentuknya Array
-        if (Array.isArray(json.data)) return json.data;
-        for (const key in json) {
-          if (Array.isArray(json[key])) return json[key];
-        }
-      }
-
-      console.warn(
-        `⚠️ Format JSON ${dataParam} tidak lazim, memaksa kosong:`,
-        json,
-      );
-      return [];
-    } catch (error) {
-      console.error(`🔥 API GET Error (${dataParam}):`, error);
-      return []; // Jangan lempar error agar layar tidak blank putih
+    // Error handling spesifik HTTP response
+    if (!response.ok) {
+      throw new Error(`Gagal menghubungi server GAS. HTTP Status: ${response.status} ${response.statusText}`);
     }
-  },
 
-  post: async (body: any): Promise<ApiResponse> => {
-    if (!GAS_URL) throw new Error("NEXT_PUBLIC_GAS_URL belum diset!");
+    const textData = await response.text();
+    let jsonData;
+
     try {
-      const res = await fetch(GAS_URL, {
-        method: "POST",
-        redirect: "follow",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(body),
-      });
-
-      const textData = await res.text();
-      let json;
-      try {
-        json = JSON.parse(textData);
-        if (typeof json === "string") json = JSON.parse(json);
-      } catch (e) {
-        return {
-          error: false,
-          message: "Berhasil (tanpa balasan JSON)",
-          data: textData,
-        };
+      jsonData = JSON.parse(textData);
+      
+      // Menangani kasus "Double Stringify" yang sering terjadi di Google Apps Script
+      if (typeof jsonData === "string") {
+        jsonData = JSON.parse(jsonData);
       }
-
-      return json;
-    } catch (error: any) {
-      console.error("API POST Error:", error);
-      return {
-        error: true,
-        message: error.message || "Gagal menghubungi server.",
-      };
+    } catch (parseError) {
+      throw new Error(`Response dari GAS bukan format JSON yang valid. Raw text: ${textData.substring(0, 150)}...`);
     }
-  },
-};
+
+    // Validasi response berdasarkan standar ApiResponse
+    if (jsonData?.status === "error") {
+      throw new Error(jsonData.message || "Terjadi kesalahan logika pada server GAS.");
+    }
+
+    console.log("Raw GAS Response:", jsonData);
+
+    return jsonData as ApiResponse<T>;
+    
+  } catch (error: any) {
+    console.error(`🔥 gasFetch Error [${endpoint}]:`, error);
+    throw error; // Lempar error agar bisa ditangani (catch) oleh komponen/React Query
+  }
+}

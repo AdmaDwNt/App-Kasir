@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { gasFetch } from "@/lib/api";
 import { Transaksi, Produk } from "@/types";
 
 export default function RiwayatClient() {
@@ -16,21 +16,37 @@ export default function RiwayatClient() {
     isError: errorTrx,
   } = useQuery({
     queryKey: ["transaksi"],
-    queryFn: () => api.get<Transaksi>("transaksi"),
+    queryFn: async () => {
+      try {
+        const res = await gasFetch<any>("?data=transaksi");
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return [];
+      }
+    },
   });
 
   const { data: products, isLoading: loadingProd } = useQuery({
     queryKey: ["produk"],
-    queryFn: () => api.get<Produk>("produk"),
+    queryFn: async () => {
+      try {
+        const res = await gasFetch<any>("?data=produk");
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return [];
+      }
+    },
   });
 
   const isLoading = loadingTrx || loadingProd;
 
   // Logika Pencarian & Pengurutan (Terbaru di atas)
   const filteredTransactions =
-    transactions
-      ?.filter((trx) => {
-        const product = products?.find((p) => p.ID_Produk === trx.ID_Produk);
+    (Array.isArray(transactions) ? transactions : [])
+      .filter((trx) => {
+        const product = (Array.isArray(products) ? products : []).find((p) => p.ID_Produk === trx.ID_Produk);
         const productName = product ? product.Nama_Produk.toLowerCase() : "";
         const search = searchQuery.toLowerCase();
 
@@ -39,7 +55,7 @@ export default function RiwayatClient() {
           productName.includes(search)
         );
       })
-      .reverse() || [];
+      .reverse();
 
   if (isLoading) {
     return (
@@ -120,8 +136,8 @@ export default function RiwayatClient() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((trx, idx) => {
-                const product = products?.find(
+              {(Array.isArray(filteredTransactions) ? filteredTransactions : []).map((trx, idx) => {
+                const product = (Array.isArray(products) ? products : []).find(
                   (p) => p.ID_Produk === trx.ID_Produk,
                 );
                 // Format tanggal dari string ISO

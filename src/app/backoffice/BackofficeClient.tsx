@@ -2,7 +2,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { gasFetch } from "@/lib/api";
 import { Produk, Transaksi } from "@/types";
 import Link from "next/link";
 
@@ -10,30 +10,46 @@ export default function BackofficeClient() {
   // Menarik 2 data sekaligus secara paralel dengan Caching React Query
   const { data: products, isLoading: loadingProd } = useQuery({
     queryKey: ["produk"],
-    queryFn: () => api.get<Produk>("produk"),
+    queryFn: async () => {
+      try {
+        const res = await gasFetch<any>("?data=produk");
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return [];
+      }
+    },
   });
 
   const { data: transactions, isLoading: loadingTrx } = useQuery({
     queryKey: ["transaksi"],
-    queryFn: () => api.get<Transaksi>("transaksi"),
+    queryFn: async () => {
+      try {
+        const res = await gasFetch<any>("?data=transaksi");
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return [];
+      }
+    },
   });
 
   const isLoading = loadingProd || loadingTrx;
 
   // --- KALKULASI STATISTIK ---
-  const totalProducts = products?.length || 0;
-  const lowStockProducts =
-    products?.filter((p) => p.Stok_Awal <= p.Stok_Minimal) || [];
-  const totalLowStock = lowStockProducts.length;
+  const totalProducts = Array.isArray(products) ? products.length : 0;
+  const totalTransactions = Array.isArray(transactions) ? transactions.length : 0;
 
-  const totalTransactions = transactions?.length || 0;
-  const totalRevenue =
-    transactions?.reduce((sum, trx) => sum + Number(trx.Total_Harga), 0) || 0;
+  const totalRevenue = (Array.isArray(transactions) ? transactions : []).reduce(
+    (sum, trx) => sum + Number(trx.Total_Harga),
+    0,
+  );
 
-  // Mengambil 5 transaksi terbaru (diurutkan dari yang paling bawah di Google Sheet)
-  const recentTransactions = transactions
-    ? [...transactions].reverse().slice(0, 5)
-    : [];
+  const lowStockProducts = (Array.isArray(products) ? products : []).filter(
+    (p) => p.Stok_Awal <= p.Stok_Minimal,
+  );
+
+  const recentTransactions = [...(Array.isArray(transactions) ? transactions : [])].reverse().slice(0, 5);
 
   if (isLoading) {
     return (
@@ -143,7 +159,7 @@ export default function BackofficeClient() {
         {/* Kartu Alert Stok */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${totalLowStock > 0 ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-400"}`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${lowStockProducts.length > 0 ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-400"}`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -165,9 +181,9 @@ export default function BackofficeClient() {
               Peringatan Stok
             </p>
             <p
-              className={`text-xl font-black ${totalLowStock > 0 ? "text-red-600" : "text-slate-800"}`}
+              className={`text-xl font-black ${lowStockProducts.length > 0 ? "text-red-600" : "text-slate-800"}`}
             >
-              {totalLowStock} Menipis
+              {lowStockProducts.length} Menipis
             </p>
           </div>
         </div>
@@ -186,58 +202,52 @@ export default function BackofficeClient() {
             </Link>
           </div>
           <div className="p-0">
-            <table className="w-full text-left">
-              <tbody>
-                {recentTransactions.map((trx, idx) => {
-                  const product = products?.find(
-                    (p) => p.ID_Produk === trx.ID_Produk,
-                  );
-                  return (
-                    <tr
-                      key={idx}
-                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50"
-                    >
-                      <td className="p-4 py-3">
-                        <p className="font-bold text-sm text-slate-800">
-                          {trx.ID_Transaksi}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(trx.Waktu).toLocaleDateString("id-ID", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </td>
-                      <td className="p-4 py-3">
-                        <p className="font-medium text-sm text-slate-700">
-                          {product ? product.Nama_Produk : trx.ID_Produk}
-                        </p>
-                        <p className="text-xs font-bold text-slate-400">
-                          {trx.Jumlah_Beli} Item
-                        </p>
-                      </td>
-                      <td className="p-4 py-3 text-right">
-                        <p className="font-bold text-sm text-emerald-600">
-                          Rp {Number(trx.Total_Harga).toLocaleString("id-ID")}
-                        </p>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {recentTransactions.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={3}
-                      className="p-6 text-center text-sm text-slate-400 font-medium"
-                    >
-                      Belum ada transaksi.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {Array.isArray(recentTransactions) && recentTransactions.length > 0 ? (
+              <table className="w-full text-left">
+                <tbody>
+                  {recentTransactions.map((trx, idx) => {
+                    const product = (Array.isArray(products) ? products : []).find(
+                      (p) => p.ID_Produk === trx.ID_Produk,
+                    );
+                    return (
+                      <tr
+                        key={idx}
+                        className="border-b border-slate-50 last:border-0 hover:bg-slate-50"
+                      >
+                        <td className="p-4 py-3">
+                          <p className="font-bold text-sm text-slate-800">
+                            {trx.ID_Transaksi}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(trx.Waktu).toLocaleDateString("id-ID", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </td>
+                        <td className="p-4 py-3">
+                          <p className="font-medium text-sm text-slate-700">
+                            {product ? product.Nama_Produk : trx.ID_Produk}
+                          </p>
+                          <p className="text-xs font-bold text-slate-400">
+                            {trx.Jumlah_Beli} Item
+                          </p>
+                        </td>
+                        <td className="p-4 py-3 text-right">
+                          <p className="font-bold text-sm text-emerald-600">
+                            Rp {Number(trx.Total_Harga).toLocaleString("id-ID")}
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p className="p-6 text-center text-sm text-slate-400 font-medium">Belum ada transaksi.</p>
+            )}
           </div>
         </div>
 
@@ -255,60 +265,54 @@ export default function BackofficeClient() {
             </Link>
           </div>
           <div className="p-0">
-            <table className="w-full text-left">
-              <tbody>
-                {lowStockProducts.slice(0, 5).map((p) => (
-                  <tr
-                    key={p.ID_Produk}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50"
-                  >
-                    <td className="p-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                          {p.Foto ? (
-                            <img
-                              src={p.Foto}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              IMG
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-bold text-sm text-slate-800">
-                            {p.Nama_Produk}
-                          </p>
-                          <p className="text-xs text-slate-500">{p.Kategori}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 py-3 text-right">
-                      <p
-                        className={`font-black text-sm ${p.Stok_Awal <= 0 ? "text-red-600" : "text-amber-600"}`}
-                      >
-                        Sisa {p.Stok_Awal} {p.Satuan}
-                      </p>
-                      <p className="text-xs text-slate-400 font-medium">
-                        Min: {p.Stok_Minimal}
-                      </p>
-                    </td>
-                  </tr>
-                ))}
-                {lowStockProducts.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={2}
-                      className="p-6 text-center text-sm text-slate-400 font-medium"
+            {Array.isArray(lowStockProducts) && lowStockProducts.length > 0 ? (
+              <table className="w-full text-left">
+                <tbody>
+                  {lowStockProducts.slice(0, 5).map((p) => (
+                    <tr
+                      key={p.ID_Produk}
+                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50"
                     >
-                      Stok dalam kondisi aman! 🎉
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      <td className="p-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                            {p.Foto ? (
+                              <img
+                                src={p.Foto}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-bold">
+                                IMG
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm text-slate-800">
+                              {p.Nama_Produk}
+                            </p>
+                            <p className="text-xs text-slate-500">{p.Kategori}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 py-3 text-right">
+                        <p
+                          className={`font-black text-sm ${p.Stok_Awal <= 0 ? "text-red-600" : "text-amber-600"}`}
+                        >
+                          Sisa {p.Stok_Awal} {p.Satuan}
+                        </p>
+                        <p className="text-xs text-slate-400 font-medium">
+                          Min: {p.Stok_Minimal}
+                        </p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="p-6 text-center text-sm text-slate-400 font-medium">Stok dalam kondisi aman! 🎉</p>
+            )}
           </div>
         </div>
       </div>

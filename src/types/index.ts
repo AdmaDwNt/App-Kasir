@@ -29,9 +29,8 @@ export interface Transaksi {
   Status_Hutang?: "Belum Lunas" | "Lunas";
 }
 
-// Ini yang dicari oleh api.ts Anda!
 export interface ApiResponse<T = any> {
-  error: boolean;
-  message: string;
+  status: "success" | "error";
+  message?: string;
   data?: T;
 }

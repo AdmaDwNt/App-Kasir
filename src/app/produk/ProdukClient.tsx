@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
-import { api } from "@/lib/api";
+import { gasFetch } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { Produk } from "@/types";
@@ -46,9 +46,9 @@ export default function ProdukClient() {
   // --- FILTERING LOGIC ---
   const categories = [
     "Semua",
-    ...Array.from(new Set(products?.map((p) => p.Kategori) || [])),
+    ...Array.from(new Set((Array.isArray(products) ? products : []).map((p) => p.Kategori))),
   ];
-  const filteredProducts = products?.filter((p) => {
+  const filteredProducts = (Array.isArray(products) ? products : []).filter((p) => {
     const matchSearch =
       p.Nama_Produk.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.ID_Produk.toLowerCase().includes(searchQuery.toLowerCase());
@@ -112,8 +112,8 @@ export default function ProdukClient() {
         ...formData,
       };
 
-      const response = await api.post(payload);
-      if (response.error) throw new Error(response.message);
+      const response = await gasFetch("", { method: "POST", body: JSON.stringify(payload) });
+      if (response.status === "error") throw new Error(response.message);
 
       await queryClient.invalidateQueries({ queryKey: ["produk"] });
       toast.success(editingId ? "Produk diperbarui!" : "Produk ditambahkan!", {
@@ -132,11 +132,11 @@ export default function ProdukClient() {
 
     const toastId = toast.loading("Menghapus produk...");
     try {
-      const response = await api.post({
-        action: "hapus_produk",
-        ID_Produk: id,
+      const response = await gasFetch("", { 
+        method: "POST", 
+        body: JSON.stringify({ action: "hapus_produk", ID_Produk: id }) 
       });
-      if (response.error) throw new Error(response.message);
+      if (response.status === "error") throw new Error(response.message);
 
       await queryClient.invalidateQueries({ queryKey: ["produk"] });
       toast.success("Produk dihapus!", { id: toastId });
@@ -158,8 +158,8 @@ export default function ProdukClient() {
         Jumlah_Konversi: Number(pecahData.Jumlah_Konversi),
       };
 
-      const response = await api.post(payload);
-      if (response.error) throw new Error(response.message);
+      const response = await gasFetch("", { method: "POST", body: JSON.stringify(payload) });
+      if (response.status === "error") throw new Error(response.message);
 
       await queryClient.invalidateQueries({ queryKey: ["produk"] });
       toast.success("Pecah renteng berhasil!", { id: toastId });
@@ -254,7 +254,7 @@ export default function ProdukClient() {
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
-          {categories.map((c) => (
+          {(Array.isArray(categories) ? categories : []).map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -298,7 +298,7 @@ export default function ProdukClient() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts?.map((p) => (
+                {(Array.isArray(filteredProducts) ? filteredProducts : []).map((p) => (
                   <tr
                     key={p.ID_Produk}
                     className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
@@ -712,7 +712,7 @@ export default function ProdukClient() {
                     <option value="" disabled>
                       -- Pilih Produk Grosir/Renteng --
                     </option>
-                    {products?.map((p) => (
+                    {(Array.isArray(products) ? products : []).map((p) => (
                       <option key={p.ID_Produk} value={p.ID_Produk}>
                         {p.Nama_Produk} (Sisa: {p.Stok_Awal})
                       </option>
@@ -754,7 +754,7 @@ export default function ProdukClient() {
                     <option value="" disabled>
                       -- Pilih Produk Ecer/Pcs --
                     </option>
-                    {products?.map((p) => (
+                    {(Array.isArray(products) ? products : []).map((p) => (
                       <option key={p.ID_Produk} value={p.ID_Produk}>
                         {p.Nama_Produk} (Sisa: {p.Stok_Awal})
                       </option>

@@ -2,17 +2,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { api } from "@/lib/api";
+import { gasFetch } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { CartItem } from "@/types";
+import { useCartStore } from "@/store/useCartStore";
 import { toast } from "react-hot-toast";
 import { toPng } from "html-to-image";
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  cart: CartItem[];
-  total: number;
   onSuccess: () => void;
 }
 
@@ -21,11 +19,11 @@ const QUICK_CASH_OPTIONS = [5000, 10000, 20000, 50000, 100000];
 export default function PaymentModal({
   isOpen,
   onClose,
-  cart,
-  total,
   onSuccess,
 }: PaymentModalProps) {
   const queryClient = useQueryClient();
+  const { items: cart, globalDiscount, getTotal, clearCart } = useCartStore();
+  const { grandTotal: total } = getTotal();
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [paymentMethod, setPaymentMethod] = useState<
@@ -79,18 +77,23 @@ export default function PaymentModal({
 
     try {
       const payload = {
-        action: "transaksi_kasir",
+        action: "checkout",
         ID_Transaksi: newTrxId,
-        cart: cart.map((item) => ({
-          ID_Produk: item.ID_Produk,
-          Jumlah_Beli: item.Jumlah_Beli,
-          Total_Harga: item.Total_Harga,
+        tipe_pembayaran: paymentMethod,
+        total_harga: total,
+        diskon_global: globalDiscount,
+        detail_transaksi: (Array.isArray(cart) ? cart : []).map((item) => ({
+          id_produk: item.id_produk,
+          qty: item.qty,
+          harga_satuan: item.harga_satuan,
+          diskon_item: item.diskon_item,
+          is_rentengan: item.is_rentengan,
         })),
       };
 
-      const response = await api.post(payload);
+      const response = await gasFetch("?action=checkout", { method: "POST", body: JSON.stringify(payload) });
 
-      if (response.error)
+      if (response.status === "error")
         throw new Error(response.message || "Gagal mencatat transaksi.");
 
       await queryClient.invalidateQueries({ queryKey: ["produk"] });
@@ -106,6 +109,8 @@ export default function PaymentModal({
         customerName,
         date: new Date().toLocaleString("id-ID"),
       });
+      
+      clearCart();
       setIsSuccessState(true);
     } catch (error: any) {
       console.error("Payment Error:", error);
@@ -126,9 +131,9 @@ export default function PaymentModal({
     if (trxData.customerName) text += `Pelanggan: ${trxData.customerName}\n`;
     text += `--------------------------------\n`;
 
-    trxData.cart.forEach((item: any) => {
-      text += `${item.Nama_Produk}\n`;
-      text += `${item.Jumlah_Beli} x Rp ${item.Harga_Jual.toLocaleString("id-ID")} = Rp ${item.Total_Harga.toLocaleString("id-ID")}\n`;
+    (Array.isArray(trxData.cart) ? trxData.cart : []).forEach((item: any) => {
+      text += `${item.nama} ${item.is_rentengan ? "(Renteng)" : ""}\n`;
+      text += `${item.qty} x Rp ${item.harga_satuan.toLocaleString("id-ID")} = Rp ${((item.qty * item.harga_satuan) - item.diskon_item).toLocaleString("id-ID")}\n`;
     });
 
     text += `--------------------------------\n`;
@@ -562,8 +567,9 @@ export default function PaymentModal({
                         </thead>
                       )}
                       <tbody>
-                        {trxData.cart.map((item: any, idx: number) =>
-                          printSize === "A4" ? (
+                        {(Array.isArray(trxData.cart) ? trxData.cart : []).map((item: any, idx: number) => {
+                          const rowTotal = (item.qty * item.harga_satuan) - item.diskon_item;
+                          return printSize === "A4" ? (
                             <tr
                               key={idx}
                               style={{ borderBottom: "1px solid #e2e8f0" }}
@@ -574,7 +580,7 @@ export default function PaymentModal({
                                   fontWeight: 500,
                                 }}
                               >
-                                {item.Nama_Produk}
+                                {item.nama} {item.is_rentengan ? "(Renteng)" : ""}
                               </td>
                               <td
                                 style={{
@@ -582,7 +588,7 @@ export default function PaymentModal({
                                   textAlign: "center",
                                 }}
                               >
-                                {item.Jumlah_Beli}
+                                {item.qty}
                               </td>
                               <td
                                 style={{
@@ -591,7 +597,7 @@ export default function PaymentModal({
                                   color: "#64748b",
                                 }}
                               >
-                                {item.Harga_Jual.toLocaleString("id-ID")}
+                                {item.harga_satuan.toLocaleString("id-ID")}
                               </td>
                               <td
                                 style={{
@@ -600,7 +606,7 @@ export default function PaymentModal({
                                   fontWeight: "bold",
                                 }}
                               >
-                                {item.Total_Harga.toLocaleString("id-ID")}
+                                {rowTotal.toLocaleString("id-ID")}
                               </td>
                             </tr>
                           ) : (
@@ -613,12 +619,12 @@ export default function PaymentModal({
                                 }}
                               >
                                 <span style={{ fontWeight: "bold" }}>
-                                  {item.Nama_Produk}
+                                  {item.nama} {item.is_rentengan ? "(Rtg)" : ""}
                                 </span>
                                 <br />
                                 <span style={{ fontSize: "10px" }}>
-                                  {item.Jumlah_Beli} x{" "}
-                                  {item.Harga_Jual.toLocaleString("id-ID")}
+                                  {item.qty} x{" "}
+                                  {item.harga_satuan.toLocaleString("id-ID")}
                                 </span>
                               </td>
                               <td
@@ -630,11 +636,11 @@ export default function PaymentModal({
                                   borderBottom: "1px dotted #ccc",
                                 }}
                               >
-                                {item.Total_Harga.toLocaleString("id-ID")}
+                                {rowTotal.toLocaleString("id-ID")}
                               </td>
                             </tr>
-                          ),
-                        )}
+                          );
+                        })}
                       </tbody>
                     </table>
 
